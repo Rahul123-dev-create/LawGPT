@@ -84,6 +84,16 @@ async function getTimeline(id) {
   return data.data.events;
 }
 
+async function generateCaseArguments(id) {
+  const { data } = await api.post(`/cases/${id}/arguments/generate`);
+  return data.data.arguments;
+}
+
+async function getCaseArguments(id) {
+  const { data } = await api.get(`/cases/${id}/arguments`);
+  return data.data.arguments;
+}
+
 export default {
   createCase,
   listCases,
@@ -102,4 +112,6 @@ export default {
   updateNote,
   deleteNote,
   getTimeline,
+  generateCaseArguments,
+  getCaseArguments,
 };

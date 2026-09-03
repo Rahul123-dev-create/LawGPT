@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Clock, Gavel, Users, StickyNote, Activity, Paperclip,
   ShieldCheck, UserSearch, ScrollText, BookMarked, Sparkles, Target,
   FileBarChart, Pencil, Pin, MoreHorizontal, Archive, RotateCcw, Trash2,
-  RotateCw, ArrowRightLeft, AlertTriangle,
+  RotateCw, ArrowRightLeft, AlertTriangle, Scale, MessageSquare, Download,
 } from 'lucide-react';
 import { Badge } from '../../../components/ui/badge';
 import { Alert, AlertDescription } from '../../../components/ui/alert';
@@ -22,8 +22,12 @@ const REAL_TABS = [
   { slug: 'timeline', label: 'Timeline', icon: Clock },
   { slug: 'hearings', label: 'Hearings', icon: Gavel },
   { slug: 'documents', label: 'Documents', icon: Paperclip },
+  { slug: 'judgments', label: 'Judgments', icon: BookMarked },
   { slug: 'ai-analysis', label: 'AI Analysis', icon: Sparkles },
   { slug: 'laws', label: 'Applicable Laws', icon: ScrollText },
+  { slug: 'arguments', label: 'Arguments', icon: Scale },
+  { slug: 'chat', label: 'Chat', icon: MessageSquare },
+  { slug: 'reports', label: 'Reports', icon: Download },
   { slug: 'parties', label: 'Parties', icon: Users },
   { slug: 'notes', label: 'Notes', icon: StickyNote },
   { slug: 'activity', label: 'Activity', icon: Activity },
@@ -35,9 +39,7 @@ const REAL_TABS = [
 export const COMING_SOON_TABS = [
   { slug: 'evidence', label: 'Evidence', icon: ShieldCheck, plannedModule: 4 },
   { slug: 'witnesses', label: 'Witnesses', icon: UserSearch, plannedModule: 4 },
-  { slug: 'judgments', label: 'Judgments', icon: BookMarked, plannedModule: 6 },
   { slug: 'strategy', label: 'Courtroom Strategy', icon: Target, plannedModule: 8 },
-  { slug: 'reports', label: 'Reports', icon: FileBarChart, plannedModule: 9 },
 ];
 
 export default function CaseDetailLayout() {

@@ -29,9 +29,14 @@ import CasePartiesTab from '../pages/app/case/CasePartiesTab';
 import CaseNotesTab from '../pages/app/case/CaseNotesTab';
 import CaseActivityTab from '../pages/app/case/CaseActivityTab';
 import CaseDocumentsTab from '../pages/app/case/CaseDocumentsTab';
+import CaseJudgmentsTab from '../pages/app/case/CaseJudgmentsTab';
 import CaseAIAnalysisTab from '../pages/app/case/CaseAIAnalysisTab';
 import CaseLawsTab from '../pages/app/case/CaseLawsTab';
+import CaseArgumentsTab from '../pages/app/case/CaseArgumentsTab';
+import CaseChatTab from '../pages/app/case/CaseChatTab';
+import CaseReportsTab from '../pages/app/case/CaseReportsTab';
 import CaseComingSoonTab from '../pages/app/case/CaseComingSoonTab';
+import ResearchHub from '../pages/app/research/ResearchHub';
 
 export default function AppRoutes() {
   return (
@@ -75,12 +80,16 @@ export default function AppRoutes() {
             <Route path="notes" element={<CaseNotesTab />} />
             <Route path="activity" element={<CaseActivityTab />} />
             <Route path="documents" element={<CaseDocumentsTab />} />
+            <Route path="judgments" element={<CaseJudgmentsTab />} />
             <Route path="ai-analysis" element={<CaseAIAnalysisTab />} />
             <Route path="laws" element={<CaseLawsTab />} />
+            <Route path="arguments" element={<CaseArgumentsTab />} />
+            <Route path="chat" element={<CaseChatTab />} />
+            <Route path="reports" element={<CaseReportsTab />} />
             <Route path=":section" element={<CaseComingSoonTab />} />
           </Route>
 
-          <Route path="research/:slug" element={<ComingSoonView registry={researchTools} />} />
+          <Route path="research/:slug" element={<ResearchHub registry={researchTools} fallback={<ComingSoonView registry={researchTools} />} />} />
           <Route path="practice/:slug" element={<ComingSoonView registry={practiceTools} />} />
         </Route>
       </Route>

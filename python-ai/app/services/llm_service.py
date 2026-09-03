@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any
 
 from ..core.config import settings
@@ -30,369 +31,139 @@ def _extract_json(text: str) -> dict:
     return parsed
 
 
-KANNADA_STUB_TEXT = "ಈ ಸಾರಾಂಶವು ಸ್ಥಿರ ಸ್ಟಬ್ ಔಟ್ಪುಟ್ ಆಗಿದೆ"
-
-
-def _stub_analysis(language: str, documents_hint: list[dict]) -> dict:
-    """Deterministic output used for acceptance testing without Gemini."""
-
-    first_page = None
-
-    if documents_hint and documents_hint[0].get("pages"):
-        first_page = documents_hint[0]["pages"][0]["pageNumber"]
-
-    docs = []
-
-    for i, doc in enumerate(documents_hint, start=1):
-        docs.append(
-            {
-                "sourceDocument": i,
-                "summary": (
-                    KANNADA_STUB_TEXT
-                    if language == "kn"
-                    else f"Deterministic stub summary for document {i}."
-                ),
-                "keyPoints": (
-                    [KANNADA_STUB_TEXT]
-                    if language == "kn"
-                    else [f"Stub key point one for document {i}."]
-                ),
-            }
-        )
-
-    return {
-        "summary": {
-            "text": (
-                KANNADA_STUB_TEXT
-                if language == "kn"
-                else "Deterministic stub case summary."
-            ),
-            "keyPoints": (
-                [KANNADA_STUB_TEXT]
-                if language == "kn"
-                else ["Stub key point one.", "Stub key point two."]
-            ),
-        },
-        "timeline": [
-            {
-                "event": (
-                    KANNADA_STUB_TEXT
-                    if language == "kn"
-                    else "Stub timeline event"
-                ),
-                "date": None,
-                "text": "",
-                "sourceDocument": 1,
-                "pageNumber": first_page,
-            }
-        ],
-        "entities": [
-            {
-                "type": "person",
-                "name": "ಸ್ಟಬ್ ವ್ಯಕ್ತಿ" if language == "kn" else "Stub Person",
-                "mentions": 1,
-                "sourceDocument": 1,
-                "pageNumber": first_page,
-            }
-        ],
-        "laws": [
-            {
-                "code": "IPC",
-                "section": "420",
-                "label": "Cheating and dishonestly inducing delivery of property",
-                "description": "Stub description.",
-                "relevance": "Stub relevance.",
-                "sourceDocument": 1,
-                "pageNumber": first_page,
-            }
-        ],
-        "documents": docs,
-    }
-
-# Preferred text-generation models.
-#
-# The order is only a preference. The actual API availability is checked
-# against the models exposed to the current Gemini API key.
+# Preferred high-performance generation models in priority order
 PREFERRED_MODELS = [
-    "gemini-3.7-flash",
-    "gemini-3.1-pro-preview",
     "gemini-3.6-flash",
+    "gemini-3.7-flash",
     "gemini-3.5-flash",
-    "gemini-2.5-pro",
     "gemini-2.5-flash",
+    "gemini-2.5-pro",
 ]
 
 
-# Models that should never be selected for legal text analysis.
-EXCLUDED_MODEL_TERMS = (
-    "image",
-    "tts",
-    "live",
-    "robotics",
-    "deep-research",
-    "computer-use",
-    "nano-banana",
-    "lyria",
-)
-
-_gemini_client: Any = None
-_available_models: list[str] | None = None
-
-
-def _get_gemini_client():
-    """Create and cache the Google GenAI client."""
-    global _gemini_client
-
-    if _gemini_client is None:
+def _import_gemini_sdk():
+    """Try importing the Gemini SDK with fallback between old and new package names."""
+    try:
+        import google.generativeai as genai
+        logger.info("Using google.generativeai SDK package")
+        return genai
+    except ImportError:
         try:
-            from google import genai
-
-            _gemini_client = genai.Client(
-                api_key=settings.gemini_api_key
-            )
-        except Exception as exc:
+            import google.genai as genai
+            logger.info("Using google.genai SDK package (fallback)")
+            return genai
+        except ImportError as exc:
             raise AnalysisError(
-                f"Unable to initialize Gemini client: {exc}"
+                "Neither google.generativeai nor google.genai package is installed. "
+                "Run: pip install google-generativeai"
             ) from exc
 
-    return _gemini_client
 
+def _call_gemini_sdk(prompt: str) -> str:
+    """Iterate through available Gemini models in priority order."""
+    api_key = getattr(settings, "gemini_api_key", None)
+    if not api_key:
+        raise AnalysisError("GEMINI_API_KEY is not configured in .env")
 
-def _model_id(name: str) -> str:
-    """Convert models/foo into foo."""
-    return name.split("/", 1)[1] if name.startswith("models/") else name
-
-
-def _discover_available_models(force_refresh: bool = False) -> list[str]:
-    """
-    Discover Gemini models available to this API key that support
-    generateContent.
-    """
-    global _available_models
-
-    if _available_models is not None and not force_refresh:
-        return _available_models
-
-    client = _get_gemini_client()
-
+    genai = _import_gemini_sdk()
     try:
-        available = []
+        genai.configure(api_key=api_key)
+    except Exception:
+        pass
 
-        for model in client.models.list():
-            name = getattr(model, "name", "") or ""
-            model_id = _model_id(name)
-
-            supported_actions = getattr(
-                model,
-                "supported_actions",
-                None,
-            ) or []
-
-            if "generateContent" not in supported_actions:
-                continue
-
-            lowered = model_id.lower()
-
-            if any(
-                term in lowered
-                for term in EXCLUDED_MODEL_TERMS
-            ):
-                continue
-
-            available.append(model_id)
-
-        if not available:
-            raise AnalysisError(
-                "No Gemini models supporting generateContent "
-                "are available to this API key."
-            )
-
-        _available_models = available
-
-        logger.info(
-            "Gemini generateContent models available: %s",
-            ", ".join(available),
-        )
-
-        return available
-
-    except AnalysisError:
-        raise
-
-    except Exception as exc:
-        logger.warning(
-            "Gemini model discovery failed: %s",
-            exc,
-        )
-
-        raise AnalysisError(
-            f"Unable to discover available Gemini models: {exc}"
-        ) from exc
-
-
-def _candidate_models() -> list[str]:
-    """
-    Return candidate models in preferred order.
-
-    If GEMINI_MODEL is configured and available, it is placed first.
-    Otherwise automatic preference order is used.
-    """
-    available = _discover_available_models()
-
-    configured_model = getattr(
-        settings,
-        "gemini_model",
-        None,
-    )
-
-    if configured_model:
-        configured_model = _model_id(
-            configured_model
-        )
-
-        if configured_model in available:
-            preferred = [configured_model]
-
-            logger.info(
-                "Configured Gemini model will be tried first: %s",
-                configured_model,
-            )
-        else:
-            preferred = []
-
-            logger.warning(
-                "Configured Gemini model %s is not available. "
-                "Using automatic model selection.",
-                configured_model,
-            )
-    else:
-        preferred = []
-
-    for model in PREFERRED_MODELS:
-        if model in available and model not in preferred:
-            preferred.append(model)
-
-    # Future-proof fallback for newly introduced Gemini models.
-    fallback_models = [
-        model
-        for model in available
-        if (
-            "gemini" in model.lower()
-            and "flash" in model.lower()
-            and "preview" not in model.lower()
-            and model not in preferred
-        )
-    ]
-
-    for model in sorted(fallback_models):
-        preferred.append(model)
-
-    # Finally include any remaining compatible model.
-    for model in sorted(available):
-        if model not in preferred:
-            preferred.append(model)
-
-    return preferred
-
-
-def _generate_with_gemini(prompt: str) -> str:
-    """
-    Generate JSON text.
-
-    Models are attempted in preference order. If Gemini returns a
-    temporary/unavailable error, the next compatible model is tried.
-    """
-    client = _get_gemini_client()
-
-    candidates = _candidate_models()
-
+    # 1. Fetch live models active for this key
+    available_from_api = []
     try:
-        from google.genai import types
-    except Exception as exc:
-        raise AnalysisError(
-            f"Unable to import Google GenAI types: {exc}"
-        ) from exc
+        for m in genai.list_models():
+            supported = getattr(m, "supported_generation_methods", []) or []
+            if "generateContent" in supported:
+                name = m.name.replace("models/", "")
+                if not any(term in name.lower() for term in ["vision", "embed", "imagen", "robotics"]):
+                    available_from_api.append(name)
+    except Exception as e:
+        logger.warning(f"Could not list remote models: {e}")
+
+    # 2. Build prioritized candidate list
+    candidate_models = []
+    configured_model = getattr(settings, "gemini_model", None)
+    if configured_model and configured_model.strip():
+        candidate_models.append(configured_model.strip().replace("models/", ""))
+
+    for pref in PREFERRED_MODELS:
+        if pref not in candidate_models and (pref in available_from_api or not available_from_api):
+            candidate_models.append(pref)
+
+    for rem in available_from_api:
+        if rem not in candidate_models:
+            candidate_models.append(rem)
+
+    logger.info(f"Candidate Gemini models for case analysis loop: {candidate_models}")
 
     errors = []
+    deprecated_keywords = ["deprecated", "not found", "404", "no model", "unsupported", "invalid"]
 
-    for model in candidates:
+    # 3. Model Fallback Loop
+    for model_name in candidate_models:
         try:
-            logger.info(
-                "Trying Gemini model: %s",
-                model,
-            )
+            logger.info(f"==> Attempting legal analysis with model: {model_name}")
+            # Build kwargs defensively — SDK versions differ in accepted parameters
+            model_kwargs = {"model_name": model_name}
+            gen_config = {"temperature": 0.2}
+            # Try both JSON-output patterns (old vs new SDK)
+            try:
+                gen_config["response_mime_type"] = "application/json"
+                model_kwargs["generation_config"] = gen_config
+            except Exception:
+                model_kwargs["generation_config"] = gen_config
 
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.2,
-                ),
-            )
+            try:
+                model = genai.GenerativeModel(**model_kwargs)
+            except TypeError:
+                # google.genai may use different signature
+                try:
+                    model = genai.GenerativeModel(model=model_name, config=gen_config)
+                except Exception as inner:
+                    raise inner
 
-            text = response.text or ""
+            try:
+                response = model.generate_content(prompt)
+            except TypeError:
+                response = model.generate_content(contents=prompt)
 
-            if not text.strip():
-                raise AnalysisError(
-                    f"Gemini model {model} returned empty output."
-                )
+            # Extract text robustly across SDK versions
+            text = ""
+            if hasattr(response, "text") and response.text:
+                text = response.text
+            elif hasattr(response, "candidates") and response.candidates:
+                try:
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, "text"):
+                            text += part.text
+                except Exception:
+                    pass
 
-            logger.info(
-                "Gemini generation succeeded with model: %s",
-                model,
-            )
-
-            return text
-
-        except Exception as exc:
-            error_text = str(exc)
-
-            logger.warning(
-                "Gemini model %s failed: %s",
-                model,
-                error_text,
-            )
-
-            errors.append(
-                f"{model}: {error_text}"
-            )
-
-            # Try the next available model.
+            if text and text.strip():
+                logger.info(f"==> SUCCESS: Real legal analysis generated using model: {model_name}")
+                return text
+            else:
+                raise Exception("Empty response text from model")
+        except Exception as e:
+            err_str = str(e)
+            lower_err = err_str.lower()
+            is_deprecated = any(kw in lower_err for kw in deprecated_keywords)
+            prefix = "DEPRECATED" if is_deprecated else "FAILED"
+            logger.warning(f"[{prefix}] Model {model_name}: {err_str}")
+            errors.append(f"{model_name}: {err_str}")
             continue
 
-    raise AnalysisError(
-        "All available Gemini models failed. "
-        + " | ".join(errors)
-    )
+    raise AnalysisError("All candidate Gemini models in loop failed: " + " | ".join(errors))
+
 
 def generate_json(
     prompt: str,
     language: str = "en",
     documents_hint: list[dict] | None = None,
 ) -> dict:
-    """
-    Run the analysis prompt and return a parsed JSON object.
-
-    Provider:
-    - stub   -> deterministic output
-    - gemini -> Google GenAI with automatic model selection
-    """
-    documents_hint = documents_hint or []
-
-    if settings.llm_provider == "stub":
-        return _stub_analysis(language, documents_hint)
-
-    if settings.llm_provider != "gemini":
-        raise AnalysisError(
-            f"Unknown LLM_PROVIDER: {settings.llm_provider}"
-        )
-
-    if not settings.gemini_api_key:
-        raise AnalysisError(
-            "GEMINI_API_KEY is not set — set it or use LLM_PROVIDER=stub"
-        )
-
-    text = _generate_with_gemini(prompt)
-
-    return _extract_json(text)
+    """Run analysis prompt and return parsed JSON."""
+    raw_json_text = _call_gemini_sdk(prompt)
+    return _extract_json(raw_json_text)

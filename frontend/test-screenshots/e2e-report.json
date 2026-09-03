@@ -1,0 +1,220 @@
+{
+  "summary": {
+    "passed": 27,
+    "failed": 14,
+    "info": 1,
+    "total": 42
+  },
+  "results": [
+    {
+      "step": "Login: fill email",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Login: fill password",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Login: click Sign In",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Login: redirect to /app",
+      "status": "PASS",
+      "detail": "http://localhost:5173/app"
+    },
+    {
+      "step": "Case: fill case number",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Case: fill title",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Case: fill case type",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Case: fill description",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Case: fill court",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Case: submit form",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Case: workspace opened",
+      "status": "PASS",
+      "detail": "http://localhost:5173/app/case/6a9867b8340dba39bdda6258"
+    },
+    {
+      "step": "Upload: click add documents",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Upload: select test PDF",
+      "status": "PASS",
+      "detail": "LawGPT-E2E-Writ-Petition.pdf"
+    },
+    {
+      "step": "Upload: click upload button",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Upload: upload request completed",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Upload: document appears in list",
+      "status": "PASS",
+      "detail": "LawGPT-E2E-Writ-Petition.pdf"
+    },
+    {
+      "step": "Upload: processing badge pending → completed",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Analysis: click generate",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Analysis: generation completed",
+      "status": "FAIL",
+      "detail": "Timed out waiting for analysis view"
+    },
+    {
+      "step": "Analysis: summary section",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "step": "Analysis: timeline section",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "step": "Analysis: entities section",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "step": "Analysis: applicable laws section",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "step": "Analysis: page provenance",
+      "status": "INFO",
+      "detail": "No p.N citations rendered"
+    },
+    {
+      "step": "Judgments: tab loaded",
+      "status": "FAIL",
+      "detail": "Timed out waiting for precedent results"
+    },
+    {
+      "step": "Judgments: search query entered",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Judgments: search submitted",
+      "status": "FAIL",
+      "detail": "Timed out waiting for search results"
+    },
+    {
+      "step": "Arguments: click generate",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Arguments: generation completed",
+      "status": "FAIL",
+      "detail": "Timed out waiting for arguments view"
+    },
+    {
+      "step": "Arguments: evidence strength meter",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "step": "Arguments: percentage bars",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "step": "Arguments: petitioner section",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "step": "Arguments: respondent section",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "step": "Chat: message entered",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Chat: message sent",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "Chat: response received",
+      "status": "FAIL",
+      "detail": "Timed out waiting for assistant reply"
+    },
+    {
+      "step": "Chat: contains page citations",
+      "status": "FAIL",
+      "detail": "No citation cards rendered"
+    },
+    {
+      "step": "Reports: tab loaded",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "PDF: get access token",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "step": "PDF: generate report",
+      "status": "PASS",
+      "detail": "Status: 200, Content-Type: application/pdf"
+    },
+    {
+      "step": "PDF: metadata endpoint",
+      "status": "PASS",
+      "detail": "8 sections, 100% complete"
+    },
+    {
+      "step": "Reports: download button visible",
+      "status": "PASS",
+      "detail": ""
+    }
+  ]
+}

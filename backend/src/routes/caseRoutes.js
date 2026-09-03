@@ -1,5 +1,6 @@
 const express = require('express');
 const caseController = require('../controllers/caseController');
+const researchController = require('../controllers/researchController');
 const { protect } = require('../middleware/authMiddleware');
 const { loadCase, requireCaseAccess } = require('../middleware/caseAccess');
 const { validate } = require('../validators/authValidators');
@@ -19,6 +20,7 @@ router.post('/', createCaseValidator, validate, caseController.createCase);
 router.get('/', caseController.listCases);
 
 router.get('/:id', loadCase, requireCaseAccess, caseController.getCase);
+router.get('/:id/precedents', loadCase, requireCaseAccess, researchController.getCasePrecedents);
 router.put('/:id', loadCase, requireCaseAccess, updateCaseValidator, validate, caseController.updateCase);
 router.delete('/:id', loadCase, requireCaseAccess, caseController.deleteCase);
 router.patch('/:id/undelete', loadCase, requireCaseAccess, caseController.undeleteCase);

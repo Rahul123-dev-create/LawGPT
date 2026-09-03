@@ -11,7 +11,9 @@ const mongoose = require('mongoose');
  * DOCUMENT_PROCESSING_FAILED with Phase 2 (OCR → extraction → chunking →
  * embeddings → vector store). AI_ANALYSIS_STARTED / AI_ANALYSIS_COMPLETED /
  * AI_ANALYSIS_FAILED were added with Module 5 Phase 3 (case analysis of the
- * processed legal documents).
+ * processed legal documents). ARGUMENTS_GENERATION_STARTED /
+ * ARGUMENTS_GENERATION_COMPLETED / ARGUMENTS_GENERATION_FAILED were added with
+ * Module 7 (adversarial arguments + evidence scoring).
  * Deliberately NOT adding placeholder types for subsystems that don't exist
  * yet (EVIDENCE_ADDED, WITNESS_ADDED, etc.) — those get added when their
  * module lands.
@@ -40,6 +42,9 @@ const EVENT_TYPES = [
   'AI_ANALYSIS_STARTED',
   'AI_ANALYSIS_COMPLETED',
   'AI_ANALYSIS_FAILED',
+  'ARGUMENTS_GENERATION_STARTED',
+  'ARGUMENTS_GENERATION_COMPLETED',
+  'ARGUMENTS_GENERATION_FAILED',
   'HEARING_CREATED',
   'HEARING_UPDATED',
   'HEARING_COMPLETED',
@@ -50,6 +55,7 @@ const EVENT_TYPES = [
   'HEARING_NO_APPEARANCE',
   'HEARING_DELETED',
   'NEXT_HEARING_SCHEDULED',
+  'REPORT_GENERATED',
 ];
 
 const caseEventSchema = new mongoose.Schema(

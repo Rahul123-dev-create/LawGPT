@@ -11,6 +11,8 @@ const router = express.Router({ mergeParams: true }); // read :caseId from the p
 router.use(protect, loadCase, requireCaseAccess);
 
 router.post('/', analysisController.runAnalysis);
+router.post('/generate', analysisController.runAnalysis);
+router.post('/regenerate', analysisController.runAnalysis);
 router.get('/', analysisController.getAnalysis);
 
 module.exports = router;

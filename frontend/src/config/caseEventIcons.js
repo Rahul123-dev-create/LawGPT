@@ -2,7 +2,7 @@ import {
   FolderPlus, Pencil, ArrowRightLeft, Archive, RotateCcw, Trash2, RotateCw,
   Pin, PinOff, Users, StickyNote, Gavel, CheckCircle2, PauseCircle,
   Clock3, XCircle, CalendarClock, UserX, CalendarPlus, FileUp, FileX,
-  Loader2, FileCheck, AlertTriangle, Sparkles,
+  Loader2, FileCheck, AlertTriangle, Sparkles, Download, Scale,
 } from 'lucide-react';
 
 /** Falls back to Gavel for any event type not explicitly mapped. */
@@ -30,6 +30,9 @@ export const EVENT_ICON = {
   AI_ANALYSIS_STARTED: Loader2,
   AI_ANALYSIS_COMPLETED: Sparkles,
   AI_ANALYSIS_FAILED: AlertTriangle,
+  ARGUMENTS_GENERATION_STARTED: Loader2,
+  ARGUMENTS_GENERATION_COMPLETED: Scale,
+  ARGUMENTS_GENERATION_FAILED: AlertTriangle,
   HEARING_CREATED: Gavel,
   HEARING_UPDATED: Gavel,
   HEARING_COMPLETED: CheckCircle2,
@@ -40,6 +43,7 @@ export const EVENT_ICON = {
   HEARING_NO_APPEARANCE: UserX,
   HEARING_DELETED: Trash2,
   NEXT_HEARING_SCHEDULED: CalendarPlus,
+  REPORT_GENERATED: Download,
 };
 
 export function iconFor(eventType) {

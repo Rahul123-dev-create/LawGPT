@@ -59,7 +59,8 @@ const register = asyncHandler(async (req, res) => {
 const login = asyncHandler(async (req, res) => {
   const { email, password, rememberMe } = req.body;
 
-  const user = await User.findOne({ email }).select('+password');
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail }).select('+password');
   if (!user || !(await user.comparePassword(password))) {
     throw ApiError.unauthorized('Invalid email or password');
   }

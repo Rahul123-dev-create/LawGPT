@@ -37,6 +37,10 @@ class ApiError extends Error {
     return new ApiError(422, message, errors);
   }
 
+  static badGateway(message = 'Upstream service failed') {
+    return new ApiError(502, message);
+  }
+
   static internal(message = 'Something went wrong') {
     return new ApiError(500, message);
   }
