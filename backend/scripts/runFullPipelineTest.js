@@ -656,33 +656,40 @@ async function ensureDocumentProcessed(caseDoc) {
     }
   }
 
-  // ---- Ensure Chroma has the document embedded as well (python-ai /documents/process)
+  // ---- Exercise the same extraction/chunk/embed route used by the backend worker.
   SUB(`Verifying ChromaDB vectorization via POST ${PYTHON_AI}/documents/process`);
   try {
-    const allPages = await PageModel.find({ documentId: docId }).sort({ pageNumber: 1 });
-    const pagesPayload = allPages.map((p) => ({
-      caseId: caseId.toString(),
-      documentId: docId.toString(),
-      documentName: TEST_DOC_FILENAME,
-      pageNumber: p.pageNumber,
-      text: p.text,
-      metadata: { docType: 'petition' },
-    }));
-
-    const pyRes = await axios.post(
-      `${PYTHON_AI}/documents/process`,
-      { pages: pagesPayload, case_id: caseId.toString() },
-      { timeout: 5 * 60 * 1000, validateStatus: () => true }
+    const fixturePath = path.join(
+      __dirname,
+      '..',
+      '..',
+      'frontend',
+      'scripts',
+      'fixtures',
+      'LawGPT-E2E-Writ-Petition.pdf'
     );
-    if (pyRes.status < 500 && pyRes.data && (pyRes.data.status === 'ok' || pyRes.data.processed || pyRes.data.data)) {
-      const processed =
-        (pyRes.data.data && pyRes.data.data.processed) || pyRes.data.processed || pagesPayload.length;
-      OK(`ChromaDB vectorization endpoint returned HTTP ${pyRes.status} (${processed} pages)`);
-    } else {
-      SUB(`Chroma call returned HTTP ${pyRes.status} — proceeding with the rest of the pipeline regardless`);
-    }
+    assert(fs.existsSync(fixturePath), `E2E PDF fixture exists (${fixturePath})`);
+
+    const form = new FormData();
+    form.append('file', new Blob([fs.readFileSync(fixturePath)], { type: 'application/pdf' }), TEST_DOC_FILENAME);
+    form.append('document_id', docId.toString());
+    form.append('case_id', caseId.toString());
+    form.append('doc_type', 'petition');
+    form.append('original_name', TEST_DOC_FILENAME);
+    form.append('mime_type', 'application/pdf');
+    form.append('language', 'en');
+
+    const pyRes = await axios.post(`${PYTHON_AI}/documents/process`, form, {
+      timeout: 5 * 60 * 1000,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    });
+    const result = pyRes.data?.data || {};
+    assert(pyRes.status === 200, `Document processing endpoint returned HTTP 200 (got ${pyRes.status})`);
+    assert(result.chunkCount > 0, `Document produced embedded chunks (got ${result.chunkCount || 0})`);
+    OK(`Document indexed: ${result.pageCount} pages, ${result.chunkCount} chunks`);
   } catch (err) {
-    SUB(`Chroma endpoint not contactable (${String(err.message).slice(0, 80)}) — proceeding.`);
+    throw new Error(`Document vectorization failed: ${String(err.response?.data?.detail || err.message).slice(0, 500)}`);
   }
 
   return { caseId: caseId.toString(), docId: docId.toString() };
@@ -828,6 +835,14 @@ async function stepArguments(caseId, docId) {
 async function stepChat(caseId) {
   SECTION('STEP 7: Grounded Document Chat with Page Citations (Module 8)');
   const Q = 'What is the primary challenge regarding the AGM dated 28.12.2025?';
+  const searchRes = await axios.post(`${PYTHON_AI}/documents/search`, {
+    caseId,
+    query: Q,
+    topK: 6,
+  });
+  const chunks = searchRes.data?.chunks || [];
+  assert(chunks.length >= 1, `Case-scoped document search returned relevant chunks (got ${chunks.length})`);
+  OK(`Case-scoped search returned ${chunks.length} relevant chunk(s)`);
   SUB(`POST ${BACKEND}/api/cases/${caseId}/chat  -> "${Q}"`);
 
   // Clear prior history to keep the run reproducible
@@ -843,6 +858,7 @@ async function stepChat(caseId) {
   assert(answer.length > 40, `Chat answer is non-empty (got length ${answer.length})`);
 
   const citations = assistant.citations || [];
+  assert(citations.length >= 1, `Chat returned grounded document citations (got ${citations.length})`);
   OK(`Chat response: answer length=${answer.length} chars, citations count=${citations.length}`);
   console.log(`       Q: ${Q}`);
   const snippet = answer.length > 220 ? answer.slice(0, 220) + '...' : answer;

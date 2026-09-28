@@ -116,3 +116,4 @@ Full folder-by-folder breakdown is in `docs/ARCHITECTURE.md`. **For current
 state, what's real vs scaffolded, and key decisions, see
 [`PROJECT_MEMORY.md`](./PROJECT_MEMORY.md) — it's the living doc now,
 updated with every module.**
+

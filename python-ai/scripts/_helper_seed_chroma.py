@@ -44,7 +44,7 @@ def seed_for_document(case_id: str, document_id: str, document_name: str, pages:
     vectorstore_service.upsert_chunks(
         chunks,
         embeddings,
-        metadata={
+        meta={
             "caseId": case_id,
             "documentId": document_id,
             "documentName": document_name,
