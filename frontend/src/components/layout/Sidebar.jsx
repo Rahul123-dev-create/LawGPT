@@ -6,6 +6,12 @@ import { useSidebar } from '../../hooks/useSidebar';
 import { caseStatusNav } from '../../config/navigation';
 import { researchTools, practiceTools } from '../../config/toolsRegistry';
 
+// Only tools with a working implementation are linked. Placeholder entries
+// stay in the registry as roadmap data but are hidden here, so the sidebar
+// never advertises a page that would render an empty "coming soon" screen.
+const visibleResearchTools = researchTools.filter((item) => item.live);
+const visiblePracticeTools = practiceTools.filter((item) => item.live);
+
 function SectionHeading({ icon: Icon, label, collapsed }) {
   return (
     <div
@@ -106,7 +112,7 @@ export default function Sidebar() {
         <div className="my-2 border-t border-border" />
 
         <SectionHeading icon={Brain} label={t('sections.legalResearch')} collapsed={isCollapsed} />
-        {researchTools.map((item) => (
+        {visibleResearchTools.map((item) => (
           <NavItem
             key={item.slug}
             to={`/app/research/${item.slug}`}
@@ -117,19 +123,22 @@ export default function Sidebar() {
           />
         ))}
 
-        <div className="my-2 border-t border-border" />
-
-        <SectionHeading icon={ClipboardList} label={t('sections.practiceManagement')} collapsed={isCollapsed} />
-        {practiceTools.map((item) => (
-          <NavItem
-            key={item.slug}
-            to={`/app/practice/${item.slug}`}
-            icon={item.icon}
-            label={t(item.labelKey)}
-            collapsed={isCollapsed}
-            onClick={closeMobile}
-          />
-        ))}
+        {visiblePracticeTools.length > 0 && (
+          <>
+            <div className="my-2 border-t border-border" />
+            <SectionHeading icon={ClipboardList} label={t('sections.practiceManagement')} collapsed={isCollapsed} />
+            {visiblePracticeTools.map((item) => (
+              <NavItem
+                key={item.slug}
+                to={`/app/practice/${item.slug}`}
+                icon={item.icon}
+                label={t(item.labelKey)}
+                collapsed={isCollapsed}
+                onClick={closeMobile}
+              />
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

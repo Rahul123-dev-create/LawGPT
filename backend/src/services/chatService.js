@@ -40,8 +40,10 @@ function extractError(err) {
   }
 }
 
-/** Calls python-ai POST /chat/case and returns the structured result. */
-async function sendChatMessage({ caseId, query, history, topK = 6 }) {
+/** Calls python-ai POST /chat/case and returns the structured result.
+ * `caseContext` carries the case record (metadata + AI analysis) so the
+ * assistant can ground answers even when document retrieval is empty. */
+async function sendChatMessage({ caseId, query, history, topK = 6, caseContext = null }) {
   let response;
   try {
     response = await axios.post(
@@ -51,6 +53,7 @@ async function sendChatMessage({ caseId, query, history, topK = 6 }) {
         query,
         history: history || [],
         top_k: topK,
+        ...(caseContext ? { case_context: caseContext } : {}),
       },
       {
         timeout: CHAT_CALL_TIMEOUT_MS,

@@ -12,8 +12,10 @@ def chat_case_route(req: ChatRequest):
     """Module 8 — context-aware document conversational RAG.
 
     Retrieves relevant document chunks from ChromaDB, constructs a grounded
-    legal prompt with conversation history, and calls the LLM. Returns a
-    structured answer with document citations and page references.
+    legal prompt with the case record (metadata + generated analysis) and
+    conversation history, and calls the LLM. Returns a structured answer with
+    document citations and page references; when no chunks are retrievable it
+    still answers from the case record instead of failing.
     """
     try:
         result = chat_case(
@@ -21,6 +23,7 @@ def chat_case_route(req: ChatRequest):
             query=req.query,
             history=[msg.model_dump() for msg in req.history],
             top_k=req.top_k,
+            case_context=req.case_context.model_dump() if req.case_context else None,
         )
         return ChatResponse(
             success=True,

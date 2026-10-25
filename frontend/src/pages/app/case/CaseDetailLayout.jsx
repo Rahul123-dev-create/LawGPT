@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, NavLink, Outlet, Link } from 'react-router-dom';
 import {
   LayoutDashboard, Clock, Gavel, Users, StickyNote, Activity, Paperclip,
-  ShieldCheck, UserSearch, ScrollText, BookMarked, Sparkles, Target,
-  FileBarChart, Pencil, Pin, MoreHorizontal, Archive, RotateCcw, Trash2,
-  RotateCw, ArrowRightLeft, AlertTriangle, Scale, MessageSquare, Download,
+  ScrollText, BookMarked, Sparkles, Pencil, Pin, MoreHorizontal, Archive,
+  RotateCcw, Trash2, RotateCw, ArrowRightLeft, AlertTriangle, Scale,
+  MessageSquare, Download,
 } from 'lucide-react';
 import { Badge } from '../../../components/ui/badge';
 import { Alert, AlertDescription } from '../../../components/ui/alert';
@@ -31,15 +31,6 @@ const REAL_TABS = [
   { slug: 'parties', label: 'Parties', icon: Users },
   { slug: 'notes', label: 'Notes', icon: StickyNote },
   { slug: 'activity', label: 'Activity', icon: Activity },
-];
-
-// Slug, label, icon, and which module builds it — rendered by the generic
-// CaseComingSoonTab so these don't need one file each. ai-analysis and laws
-// were built by Module 5 Phase 3 and moved to REAL_TABS above.
-export const COMING_SOON_TABS = [
-  { slug: 'evidence', label: 'Evidence', icon: ShieldCheck, plannedModule: 4 },
-  { slug: 'witnesses', label: 'Witnesses', icon: UserSearch, plannedModule: 4 },
-  { slug: 'strategy', label: 'Courtroom Strategy', icon: Target, plannedModule: 8 },
 ];
 
 export default function CaseDetailLayout() {
@@ -194,22 +185,6 @@ export default function CaseDetailLayout() {
                 cn(
                   'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm',
                   isActive ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted'
-                )
-              }
-            >
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
-            </NavLink>
-          ))}
-          <span className="mx-1 my-auto h-4 w-px bg-border" />
-          {COMING_SOON_TABS.map((tab) => (
-            <NavLink
-              key={tab.slug}
-              to={`/app/case/${caseId}/${tab.slug}`}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground/70 hover:bg-muted',
-                  isActive && 'bg-muted font-medium text-muted-foreground'
                 )
               }
             >

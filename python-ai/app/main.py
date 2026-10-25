@@ -13,8 +13,11 @@ setup_logging()
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    judgment_service.initialize_and_index()
-    logger.info("LawGPT AI service started (embedding model: %s)", settings.embedding_model)
+    try:
+        judgment_service.initialize_and_index()
+        logger.info("LawGPT AI service started (embedding model: %s)", settings.embedding_model)
+    except Exception as exc:
+        logger.warning("AI service booted with local-safe fallback because precedent indexing failed: %s", exc)
     yield
     logger.info("LawGPT AI service stopped")
 

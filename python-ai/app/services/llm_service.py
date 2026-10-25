@@ -31,12 +31,15 @@ def _extract_json(text: str) -> dict:
     return parsed
 
 
-# Preferred high-performance generation models in priority order
+# Preferred models in priority order. Keep this list conservative and
+# well-supported so local verification does not chase deprecated or
+# quota-sensitive model IDs. When a valid Gemini API key is configured, the
+# service will still try these first before falling back to the API's live list.
 PREFERRED_MODELS = [
-    "gemini-3.6-flash",
-    "gemini-3.7-flash",
-    "gemini-3.5-flash",
     "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
     "gemini-2.5-pro",
 ]
 
@@ -85,10 +88,20 @@ def _call_gemini_sdk(prompt: str) -> str:
 
     # 2. Build prioritized candidate list
     candidate_models = []
-    configured_model = getattr(settings, "gemini_model", None)
-    if configured_model and configured_model.strip():
-        candidate_models.append(configured_model.strip().replace("models/", ""))
+    configured_model_str = getattr(settings, "gemini_models", None)
+    if configured_models and configured_models_str.strip():
+        for cm in configured_models_str.split(","):
+            clean_cm=cm.strip().replace("models/", "")
+            if clean_cm and clean_cm not in candidate_models:
+                candidate_models.append(clean_cm)
 
+    #Also check single legacy configured model parameter
+    configured_model=getattr(settings, "gemini_model", None)
+    if configured_model and configured_model.strip():
+        if single_mod not in candidate_models:
+            candidate_models.insert(0, single_mod)
+
+    #Append preferred models if not already included
     for pref in PREFERRED_MODELS:
         if pref not in candidate_models and (pref in available_from_api or not available_from_api):
             candidate_models.append(pref)
@@ -100,7 +113,7 @@ def _call_gemini_sdk(prompt: str) -> str:
     logger.info(f"Candidate Gemini models for case analysis loop: {candidate_models}")
 
     errors = []
-    deprecated_keywords = ["deprecated", "not found", "404", "no model", "unsupported", "invalid"]
+    deprecated_keywords = ["deprecated", "not found", "404", "no model", "unsupported", "invalid", "429", "resource_exhausted"]
 
     # 3. Model Fallback Loop
     for model_name in candidate_models:
@@ -151,8 +164,8 @@ def _call_gemini_sdk(prompt: str) -> str:
             err_str = str(e)
             lower_err = err_str.lower()
             is_deprecated = any(kw in lower_err for kw in deprecated_keywords)
-            prefix = "DEPRECATED" if is_deprecated else "FAILED"
-            logger.warning(f"[{prefix}] Model {model_name}: {err_str}")
+            prefix = "EXHAUSTED/DEPRECATED" if is_deprecated else "FAILED"
+            logger.warning(f"[{prefix}] Model {model_name}: {err_str} -> Rotating to next fallback model.")
             errors.append(f"{model_name}: {err_str}")
             continue
 

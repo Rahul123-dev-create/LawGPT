@@ -10,10 +10,11 @@ import { Badge } from '../../../components/ui/badge';
 import chatService from '../../../services/chatService';
 
 const QUICK_QUERIES = [
-  'What are the primary grounds under Section 27A?',
-  'Summarize the key arguments in this case',
-  'List all parties and their roles',
-  'What evidence has been submitted?',
+  'Summarize the key evidence in this case',
+  'Which IPC/BNS sections apply and why?',
+  'What are the weaknesses in the prosecution case?',
+  'List the key dates and events in the timeline',
+  'What relief can the defense argue for?',
 ];
 
 function CitationCard({ citation }) {

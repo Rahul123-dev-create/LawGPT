@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import AppShell from '../components/layout/AppShell';
 import GuestRoute from './GuestRoute';
@@ -15,10 +15,8 @@ import AppHome from '../pages/app/AppHome';
 import CaseListView from '../pages/app/CaseListView';
 import NewCase from '../pages/app/NewCase';
 import EditCase from '../pages/app/EditCase';
-import CaseWorkspacePreview from '../pages/app/CaseWorkspacePreview';
 import SearchResults from '../pages/app/SearchResults';
-import ComingSoonView from '../pages/app/ComingSoonView';
-import { researchTools, practiceTools } from '../config/toolsRegistry';
+import { researchTools } from '../config/toolsRegistry';
 
 import CaseDetailLayout from '../pages/app/case/CaseDetailLayout';
 import CaseOverviewTab from '../pages/app/case/CaseOverviewTab';
@@ -35,8 +33,15 @@ import CaseLawsTab from '../pages/app/case/CaseLawsTab';
 import CaseArgumentsTab from '../pages/app/case/CaseArgumentsTab';
 import CaseChatTab from '../pages/app/case/CaseChatTab';
 import CaseReportsTab from '../pages/app/case/CaseReportsTab';
-import CaseComingSoonTab from '../pages/app/case/CaseComingSoonTab';
 import ResearchHub from '../pages/app/research/ResearchHub';
+
+/** Unknown case-workspace section slugs (old bookmarks, removed placeholder
+ * tabs) land on the overview. Resolved from the actual caseId so the redirect
+ * is absolute — a bare relative Navigate would append instead of replace. */
+function CaseSectionRedirect() {
+  const { caseId } = useParams();
+  return <Navigate to={`/app/case/${caseId}/overview`} replace />;
+}
 
 export default function AppRoutes() {
   return (
@@ -61,7 +66,9 @@ export default function AppRoutes() {
           <Route path="search" element={<SearchResults />} />
 
           <Route path="cases/new" element={<NewCase />} />
-          <Route path="cases/preview" element={<CaseWorkspacePreview />} />
+          {/* The sample-data workspace preview was removed; old bookmarks land
+              on the real case list instead of being read as a status filter. */}
+          <Route path="cases/preview" element={<Navigate to="/app/cases/ongoing" replace />} />
           <Route path="cases/:status" element={<CaseListView />} />
 
           {/* "edit" is a literal static segment, so React Router ranks it
@@ -86,11 +93,12 @@ export default function AppRoutes() {
             <Route path="arguments" element={<CaseArgumentsTab />} />
             <Route path="chat" element={<CaseChatTab />} />
             <Route path="reports" element={<CaseReportsTab />} />
-            <Route path=":section" element={<CaseComingSoonTab />} />
+            {/* Unknown section slugs (old bookmarks, removed placeholder tabs)
+                land on the overview instead of a "coming soon" screen. */}
+            <Route path=":section" element={<CaseSectionRedirect />} />
           </Route>
 
-          <Route path="research/:slug" element={<ResearchHub registry={researchTools} fallback={<ComingSoonView registry={researchTools} />} />} />
-          <Route path="practice/:slug" element={<ComingSoonView registry={practiceTools} />} />
+          <Route path="research/:slug" element={<ResearchHub registry={researchTools} />} />
         </Route>
       </Route>
 

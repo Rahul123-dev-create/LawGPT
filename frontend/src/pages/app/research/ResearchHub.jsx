@@ -8,16 +8,6 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import researchService from '../../../services/researchService';
 
-const LIVE_RESEARCH_SLUGS = new Set([
-  'judge-research',
-  'constitution',
-  'supreme-court',
-  'high-court',
-  'judgment-search',
-  'case-comparison',
-  'legal-dictionary',
-]);
-
 const DEFAULT_QUERY_BY_SLUG = {
   'judge-research': 'Administrative law judicial review of arbitrary transfers and statutory tenure protections',
   constitution: 'Article 14 Article 19 Article 21 constitutional due process and proportionality',
@@ -68,12 +58,14 @@ function PrecedentCard({ result }) {
   );
 }
 
-export default function ResearchHub({ registry, fallback = null }) {
+export default function ResearchHub({ registry }) {
   const { slug } = useParams();
   const { t } = useTranslation('nav');
   const tool = registry.find((item) => item.slug === slug);
 
-  const live = LIVE_RESEARCH_SLUGS.has(slug);
+  // `live` is owned by config/toolsRegistry.js — one source of truth shared
+  // with the sidebar, so a tool is only offered where it actually works.
+  const live = Boolean(tool?.live);
   const initialQuery = useMemo(() => DEFAULT_QUERY_BY_SLUG[slug] || '', [slug]);
   const [query, setQuery] = useState(initialQuery);
   const [sectionFilter, setSectionFilter] = useState(inferSectionFilter(slug));
@@ -141,7 +133,25 @@ export default function ResearchHub({ registry, fallback = null }) {
     }
   };
 
-  if (!live) return fallback;
+  if (!live) {
+    return (
+      <div className="container max-w-3xl py-6">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+          <BookMarked className="h-7 w-7 text-muted-foreground" />
+          <p className="mt-3 text-sm font-medium">
+            {tool ? t(tool.labelKey) : slug} is not built yet
+          </p>
+          <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+            This research tool is still on the roadmap. Precedent search over the seeded
+            judgment corpus is live — try Judgment Search from the sidebar.
+          </p>
+          <Button size="sm" variant="outline" className="mt-4" asChild>
+            <Link to="/app/research/judgment-search">Open Judgment Search</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container max-w-5xl py-6">

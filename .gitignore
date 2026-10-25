@@ -13,6 +13,7 @@ yarn-error.log*
 __pycache__/
 *.py[cod]
 *.pyo
+.pytest_cache/
 .venv/
 venv/
 env/
@@ -26,40 +27,27 @@ build/
 *.log
 logs/
 
-# OS
+# OS / IDE
 .DS_Store
 Thumbs.db
-
-# IDE
 .vscode/
 .idea/
 
 # Temporary files
 *.tmp
-*.tempnode_modules/
-dist/
-build/
-.env
-*.log
-logs/*.log
+*.temp
 
-__pycache__/
-*.pyc
-venv/
-.venv/
-
+# Runtime artifacts
 vectorstore/*
 !vectorstore/.gitkeep
-# python-ai's persisted Chroma index (Module 4 Phase 2) — runtime artifact,
-# regenerable from MongoDB DocumentPage records. The root-relative rule above
-# does not reach this nested directory, so cover it explicitly.
 python-ai/vectorstore/*
 !python-ai/vectorstore/.gitkeep
+python-ai/vectorstore-test/
+vectorstore-test/
 reports/*
 !reports/.gitkeep
-
-# Uploaded case documents (Module 4) — never commit user files
 backend/uploads/*
 !backend/uploads/.gitkeep
 
-.DS_Store
+# Profile/audit kit is not part of the LawGPT product
+github-profile-kit/

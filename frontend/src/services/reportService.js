@@ -17,16 +17,29 @@ import api from './api';
  * @param {boolean} [options.includeEvidenceScorecard=true]
  * @returns {Promise<Blob>} The PDF blob
  */
-export async function downloadCasePdfReport(caseId, options = {}) {
+function buildReportUrl(caseId, options = {}) {
   const params = new URLSearchParams();
   if (options.includePrecedents === false) params.set('includePrecedents', 'false');
   if (options.includeArguments === false) params.set('includeArguments', 'false');
   if (options.includeEvidenceScorecard === false) params.set('includeEvidenceScorecard', 'false');
 
   const queryString = params.toString();
-  const url = `/cases/${caseId}/report/pdf${queryString ? `?${queryString}` : ''}`;
+  return `/cases/${caseId}/report/pdf${queryString ? `?${queryString}` : ''}`;
+}
 
-  const response = await api.get(url, { responseType: 'blob' });
+/**
+ * Fetch the report as an object URL so it can be viewed in a browser tab
+ * before downloading. The caller owns (and revokes) the returned URL.
+ * @returns {Promise<{url: string, size: number}>}
+ */
+export async function previewCasePdfReport(caseId, options = {}) {
+  const response = await api.get(buildReportUrl(caseId, options), { responseType: 'blob' });
+  const blob = new Blob([response.data], { type: 'application/pdf' });
+  return { url: window.URL.createObjectURL(blob), size: blob.size };
+}
+
+export async function downloadCasePdfReport(caseId, options = {}) {
+  const response = await api.get(buildReportUrl(caseId, options), { responseType: 'blob' });
 
   // Trigger browser download
   const blob = new Blob([response.data], { type: 'application/pdf' });

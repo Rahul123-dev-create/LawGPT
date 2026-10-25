@@ -747,3 +747,62 @@ before extending them.
 7. Multi-user case assignment UI — `Case.assignedUsers` exists at the data layer and defaults to `[createdBy]`, but there's no picker to assign a case to a colleague yet (would need a "list org users" endpoint that doesn't exist).
 8. **No dedicated Trash UI.** Case soft-delete has a restore *banner* (if you land on a deleted case's own URL) but no browsable list of your deleted cases. Hearing soft-delete has neither a restore endpoint nor any UI — a deleted hearing's document still exists in MongoDB (not unrecoverable), but nothing in the app can undelete it yet. Documents (Module 4) have the same gap: deleted documents are `404` on detail/download and the physical file is retained but unrecoverable through the app. All three are intentionally out of scope for now, not oversights.
 9. `hearingCounter` on `Case` is internal bookkeeping (`select: false`) — if a future migration or bulk-import script inserts hearings directly (bypassing `createHearing`), it must also bump this counter, or the next real `createHearing`/`transitionHearing` call could collide with the unique index.
+
+## Core-workflow completion pass (October 2026)
+
+Goal: make the six core case workflows run end-to-end even without a live Gemini
+key, and remove placeholder navigation from the UI.
+
+### python-ai
+- `analysis_service.py` — added a deterministic **extractive** analysis builder,
+  used when `LLM_PROVIDER != "gemini"` and as a fallback when a Gemini call fails.
+  It reads only the authoritative page text: lead sentences for the summary,
+  per-page key points, date-bearing sentences for the timeline (dotted
+  `12.04.1987` and ordinal dates included), statute mentions (`Section N`,
+  `IPC/BNS/BNSS/BSA N`) with the containing sentence as `relevance`, Act-name
+  labelling for non-penal statutes, and statute/date/amount/person entities.
+  IPC↔BNS `equivalent` still comes only from `nlp/ipc_bns_map.py`.
+- `chat_service.py` — the prompt now carries the **case record** (metadata +
+  `CaseAnalysis` summary/key points/laws) beside retrieved chunks. The
+  distance→similarity conversion now respects the collection metric: the
+  document collection is squared-L2, so similarity is `1 - d/2`, not `1 - d`
+  (the old conversion wiped out every real hit's score and dropped all
+  citations). With neither chunks nor a case record, the LLM is still never
+  called; with a case record it answers from case data and states plainly that
+  no documents are indexed.
+- `chat.py` / `chat_schemas.py` — optional `case_context` request field.
+- `embedding_service.py` — the real `BAAI/bge-small-en-v1.5` model is the
+  default again (opt out with `LAWGPT_DISABLE_EMBEDDING_DOWNLOAD=true`); the
+  deterministic fallback vectors remain for offline machines. Existing Chroma
+  chunks embedded with fallback vectors should be reprocessed once.
+- `judgment_service.py` — section filters match section numbers
+  ("IPC Section 420" vs seeded "Section 420 IPC"), not just literal substrings.
+
+### backend
+- `chatController.js` — streams case metadata + analysis to python-ai.
+- `researchController.js` — section filters use only IPC/BNS/BNSS/BSA; an
+  unfiltered fallback runs when the filter starves the small seeded corpus.
+
+### frontend
+- Case tabs are now only real features: Overview, Timeline, Hearings, Documents,
+  Judgments, AI Analysis, Applicable Laws, Arguments, Chat, Reports, Parties,
+  Notes, Activity.
+- Deleted `ComingSoonView.jsx`, `CaseComingSoonTab.jsx`,
+  `CaseWorkspacePreview.jsx`. `/app/case/:caseId/:section` redirects to the
+  overview; `/app/cases/preview` redirects to the ongoing case list.
+- The sidebar links only tools with a working implementation (`live: true` in
+  `config/toolsRegistry.js`); the Practice Management section is hidden until
+  one of its tools exists.
+- Chat: legal quick-prompt chips, loading states, expandable source citations.
+- Reports: `Preview` renders the generated PDF inline before downloading.
+
+### Verification (MongoDB + backend:5000 + python-ai:8000)
+- `python -m pytest python-ai/tests` → 16 passed
+- `node --check` on every backend file → clean; `npm test` loads the app
+- `npm run build` (frontend) → success (ESLint has no config file in the repo,
+  so `npm run lint` cannot run)
+- `backend/scripts/runFullPipelineTest.js` → exit 0: analysis (698-char summary,
+  12 timeline events, 25 entities, 7 laws), 5 precedents, 3 petitioner grounds +
+  2 respondent rebuttals, chat with 3 citations, 21.8 KB PDF report
+- Browser check: tab list, `/evidence` → overview redirect, chat citation cards,
+  inline report preview, sidebar showing only working research tools

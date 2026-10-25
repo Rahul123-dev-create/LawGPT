@@ -1,3 +1,5 @@
+import re
+
 from ..core.config import settings
 from ..core.logging import logger
 from ..models.analysis_schemas import (
@@ -8,7 +10,7 @@ from ..models.analysis_schemas import (
     AnalysisResult,
     AnalysisTimelineItem,
 )
-from ..nlp.ipc_bns_map import normalize_law
+from ..nlp.ipc_bns_map import BNS_TO_IPC, IPC_TO_BNS, normalize_law
 from . import rag_service
 from .llm_service import AnalysisError, generate_json
 
@@ -292,6 +294,336 @@ def _normalize(raw: dict, documents: list[AnalysisDocumentInput], language: str,
         documents=doc_results,
     )
 
+# ---------------------------------------------------------------------------
+# Deterministic analysis fallback (LLM_PROVIDER=stub, or Gemini unreachable).
+#
+# Everything below is strictly extractive: it only reports what the supplied
+# page text literally contains (sentences, dates, amounts, statute mentions).
+# Nothing is inferred or invented, so the structured result stays trustworthy
+# when no live LLM key is configured.
+# ---------------------------------------------------------------------------
+
+_SECTION_TOKEN = r"\d{1,3}[A-Za-z]?(?:\(\d+\))*"
+_SECTION_RE = re.compile(rf"(?:\bSection|\bSec\.|\bSections)\s+({_SECTION_TOKEN})(?![\w(])", re.IGNORECASE)
+_CODED_SECTION_RE = re.compile(rf"\b(IPC|BNS|BNSS|BSA)\s+(?:Section\s+)?({_SECTION_TOKEN})(?![\w(])", re.IGNORECASE)
+_MONTH = (
+    r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|"
+    r"Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+)
+_DATE_RE = re.compile(
+    r"\b(?:\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}-\d{2}-\d{2}|"
+    rf"{_MONTH}\.?\s+\d{{1,2}},?\s+\d{{4}}|"
+    rf"\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTH},?\s+\d{{4}})\b"
+)
+_ACT_NAME_RE = re.compile(
+    r"([A-Z][A-Za-z&,'()-]*(?:\s+[A-Z][A-Za-z&,'()-]*)*\s+Act,?\s*\d{4})"
+)
+_AMOUNT_RE = re.compile(r"(?:₹|Rs\.?\s?)\s?\d[\d,]*(?:\.\d+)?(?:\s*(?:lakh|crore|million))?")
+_PERSON_RE = re.compile(
+    r"\b(?:Mr\.|Mrs\.|Ms\.|Shri|Sri|Smt\.)\s+([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})"
+)
+
+_KNOWN_CODE_TERMS = (
+    ("bharatiya nyaya sanhita", "BNS"),
+    ("indian penal code", "IPC"),
+    ("bharatiya nagarik suraksha", "BNSS"),
+    ("bharatiya sakshya adhiniyam", "BSA"),
+    (" bns", "BNS"),
+    (" ipc", "IPC"),
+    (" bnss", "BNSS"),
+    (" bsa", "BSA"),
+)
+
+
+def _sentences(text: str) -> list[str]:
+    """Split text into sentences without breaking on dotted honorifics and
+    abbreviations (Mr., Smt., J.M.F.C., e.g.) — those are everywhere in legal
+    documents and a naive split shreds them into fragments."""
+    text = " ".join((text or "").split())
+    if not text:
+        return []
+
+    words = text.split(" ")
+    parts: list[str] = []
+    start = 0
+
+    for i, word in enumerate(words[:-1]):
+        bare = word.strip("\"')]")
+        if not bare or bare[-1] not in ".!?":
+            continue
+        core = bare[:-1]
+        # A trailing period only ends a sentence when the word before it is a
+        # real word: single/short tokens and dotted abbreviations do not.
+        if bare[-1] == "." and (len(core) < 4 or "." in core):
+            continue
+
+        nxt = words[i + 1]
+        if nxt[:1].isupper() or nxt[:1].isdigit() or nxt[:1] in "\"'(":
+            parts.append(" ".join(words[start : i + 1]))
+            start = i + 1
+
+    parts.append(" ".join(words[start:]))
+    return [p for p in parts if p]
+
+
+def _shorten(text: str, limit: int) -> str:
+    text = " ".join((text or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rsplit(" ", 1)[0] + "…"
+
+
+def _classify_section(section: str, text: str, pos: int) -> str:
+    """Infer the statute code for a section mention from the text nearest to it,
+    falling back to the curated IPC↔BNS reference data. Never guesses a code
+    that neither the text nor the reference data supports."""
+    window_start = max(0, pos - 200)
+    window = (text or "")[window_start: pos + 200].lower()
+    center = pos - window_start
+
+    best_code = ""
+    best_distance = None
+    for term, code in _KNOWN_CODE_TERMS:
+        idx = window.find(term)
+        while idx != -1:
+            distance = abs(idx - center)
+            if best_distance is None or distance < best_distance:
+                best_code = code
+                best_distance = distance
+            idx = window.find(term, idx + 1)
+    if best_code:
+        return best_code
+
+    base = ""
+    for ch in section:
+        if ch.isdigit():
+            base += ch
+        elif base:
+            break
+
+    in_ipc = base in IPC_TO_BNS
+    in_bns = base in BNS_TO_IPC
+    if in_ipc and not in_bns:
+        return "IPC"
+    if in_bns and not in_ipc:
+        return "BNS"
+    if in_ipc and in_bns:
+        return "IPC"  # ambiguous without context (e.g. IPC 324 vs BNS 324)
+    return "OTHER"
+
+
+def _extract_laws(documents: list[AnalysisDocumentInput]) -> list[dict]:
+    """Statute mentions found verbatim in the page text, each grounded in the
+    document/page it was read from, with the sentence as its relevance."""
+    laws: list[dict] = []
+    seen: set[tuple] = set()
+
+    for doc_index, doc in enumerate(documents, start=1):
+        for page in doc.pages:
+            text = page.text or ""
+            # (section, code or None when the code must be inferred)
+            mentions: list[tuple[str, str | None, re.Match]] = []
+            mentions.extend((m.group(2), m.group(1).upper(), m) for m in _CODED_SECTION_RE.finditer(text))
+            coded_spans = [(m.start(), m.end()) for m in _CODED_SECTION_RE.finditer(text)]
+            mentions.extend(
+                (m.group(1), None, m)
+                for m in _SECTION_RE.finditer(text)
+                if not any(start <= m.start() < end for start, end in coded_spans)
+            )
+
+            for section, stated_code, match in mentions:
+                # A bare "Section 4" with no statute context is almost always an
+                # internal cross-reference, not a penal provision.
+                code = stated_code or _classify_section(section, text, match.start())
+                base = "".join(ch for ch in section if ch.isdigit()) or section
+                if code == "OTHER" and base.isdigit() and int(base) < 10:
+                    continue
+
+                key = (code, section.lower())
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                sentence = next(
+                    (s for s in _sentences(text) if match.group(0) in s),
+                    _shorten(text[max(0, match.start() - 120): match.end() + 120], 240),
+                )
+                # A section from a non-penal statute (society/company/etc. Act)
+                # is labelled with that Act when the text names it, so the UI
+                # never shows a bare "OTHER".
+                label = ""
+                if code == "OTHER":
+                    act_match = _ACT_NAME_RE.search(
+                        text[max(0, match.start() - 160): match.end() + 160]
+                    )
+                    if act_match:
+                        label = _shorten(act_match.group(1), 80)
+
+                laws.append(
+                    {
+                        "code": code,
+                        "section": section,
+                        "label": label,
+                        "relevance": _shorten(sentence, 240),
+                        "sourceDocument": doc_index,
+                        "pageNumber": page.pageNumber,
+                    }
+                )
+                if len(laws) >= 15:
+                    return laws
+    return laws
+
+
+def _extract_timeline(documents: list[AnalysisDocumentInput]) -> list[dict]:
+    """Dates stated in the documents, each paired with the sentence that
+    states it — a chronology of what the text actually says, nothing more."""
+    timeline: list[dict] = []
+
+    for doc_index, doc in enumerate(documents, start=1):
+        for page in doc.pages:
+            text = page.text or ""
+            for match in _DATE_RE.finditer(text):
+                sentence = next(
+                    (s for s in _sentences(text) if match.group(0) in s),
+                    _shorten(text[max(0, match.start() - 120): match.end() + 160], 240),
+                )
+                timeline.append(
+                    {
+                        "event": _shorten(sentence, 160),
+                        "date": match.group(0),
+                        "text": _shorten(sentence, 240),
+                        "sourceDocument": doc_index,
+                        "pageNumber": page.pageNumber,
+                    }
+                )
+                if len(timeline) >= 12:
+                    return timeline
+    return timeline
+
+
+def _extract_entities(
+    documents: list[AnalysisDocumentInput], laws: list[dict], timeline: list[dict]
+) -> list[dict]:
+    """Literal entities read out of the text: statutes, dates, amounts and
+    honorific-prefixed person names."""
+    entities: list[dict] = []
+
+    for law in laws:
+        entities.append(
+            {
+                "type": "statute",
+                "name": f"{law['code']} Section {law['section']}",
+                "sourceDocument": law["sourceDocument"],
+                "pageNumber": law["pageNumber"],
+            }
+        )
+
+    for item in timeline:
+        entities.append(
+            {
+                "type": "date",
+                "name": item["date"],
+                "sourceDocument": item["sourceDocument"],
+                "pageNumber": item["pageNumber"],
+            }
+        )
+
+    seen = {e["name"] for e in entities}
+    for doc_index, doc in enumerate(documents, start=1):
+        for page in doc.pages:
+            text = page.text or ""
+            for kind, pattern in (("amount", _AMOUNT_RE), ("person", _PERSON_RE)):
+                for match in pattern.finditer(text):
+                    name = (match.group(1) if kind == "person" else match.group(0)).strip()
+                    if not name or name in seen:
+                        continue
+                    seen.add(name)
+                    entities.append(
+                        {
+                            "type": kind,
+                            "name": _shorten(name, 80),
+                            "sourceDocument": doc_index,
+                            "pageNumber": page.pageNumber,
+                        }
+                    )
+                    if len(entities) >= 25:
+                        return entities
+    return entities
+
+
+def _key_points(text: str, limit: int) -> list[str]:
+    points: list[str] = []
+    for sentence in _sentences(text):
+        point = _shorten(sentence, 220)
+        if point and point not in points:
+            points.append(point)
+        if len(points) >= limit:
+            break
+    return points
+
+
+def _stub_analysis(documents: list[AnalysisDocumentInput]) -> dict:
+    """Deterministic, extractive case analysis used when no live LLM is
+    configured (LLM_PROVIDER=stub) or when the LLM call fails."""
+    all_text = "\n".join(page.text for doc in documents for page in doc.pages)
+    laws = _extract_laws(documents)
+    timeline = _extract_timeline(documents)
+    entities = _extract_entities(documents, laws, timeline)
+
+    lead_sentences = []
+    for doc in documents:
+        for page in doc.pages:
+            for sentence in _sentences(page.text or ""):
+                if sentence not in lead_sentences:
+                    lead_sentences.append(sentence)
+                if len(lead_sentences) >= 2:
+                    break
+            if len(lead_sentences) >= 2:
+                break
+        if len(lead_sentences) >= 2:
+            break
+
+    summary_text = _shorten(" ".join(lead_sentences), 700)
+    if not summary_text:
+        summary_text = _shorten(all_text, 700)
+
+    key_points: list[str] = []
+    for doc in documents:
+        for page in doc.pages:
+            for point in _key_points(page.text or "", 2):
+                if point not in key_points:
+                    key_points.append(point)
+            if len(key_points) >= 6:
+                break
+        if len(key_points) >= 6:
+            break
+
+    per_document = []
+    for doc_index, doc in enumerate(documents, start=1):
+        text = "\n".join(page.text for page in doc.pages)
+        sentences = _sentences(text)
+        per_document.append(
+            {
+                "sourceDocument": doc_index,
+                "summary": _shorten(" ".join(sentences[:2]), 500) or _shorten(text, 500),
+                "keyPoints": _key_points(text, 5),
+            }
+        )
+
+    logger.info(
+        "Deterministic analysis fallback: %d law mention(s), %d timeline item(s), %d entit(y/ies)",
+        len(laws), len(timeline), len(entities),
+    )
+
+    return {
+        "summary": {"text": summary_text, "keyPoints": key_points},
+        "timeline": timeline,
+        "entities": entities,
+        "laws": laws,
+        "documents": per_document,
+    }
+
+
 def _fill_missing_document_analysis(
     raw: dict,
     documents: list[AnalysisDocumentInput],
@@ -472,17 +804,28 @@ def analyze_case(case_id: str, language: str, truncated: bool, documents: list[A
     retrieval_note = rag_service.format_retrieved_evidence(excerpts, doc_index)
     prompt = _build_prompt(documents, language, truncated, retrieval_note)
 
-    raw = generate_json(
-        prompt,
-        language=language,
-        documents_hint=[_hint(d) for d in documents],
-    )
-
-    raw = _fill_missing_document_analysis(
-        raw,
-        documents,
-        language,
-    )
+    if settings.llm_provider == "gemini":
+        try:
+            raw = generate_json(
+                prompt,
+                language=language,
+                documents_hint=[_hint(d) for d in documents],
+            )
+            raw = _fill_missing_document_analysis(
+                raw,
+                documents,
+                language,
+            )
+        except AnalysisError as exc:
+            # Never fail the analysis because the LLM key/quota is unusable —
+            # fall back to the extractive builder instead.
+            logger.warning(
+                "Gemini unavailable for analysis (case %s): %s — using deterministic fallback",
+                case_id, exc,
+            )
+            raw = _stub_analysis(documents)
+    else:
+        raw = _stub_analysis(documents)
 
     return _normalize(
         raw,

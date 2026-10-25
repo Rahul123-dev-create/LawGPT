@@ -2,6 +2,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const CaseChatMessage = require('../models/CaseChatMessage');
+const CaseAnalysis = require('../models/CaseAnalysis');
+const Document = require('../models/Document');
 const { sendChatMessage } = require('../services/chatService');
 
 /**
@@ -11,6 +13,37 @@ const { sendChatMessage } = require('../services/chatService');
  * Messages are persisted to MongoDB so conversation history survives page
  * refreshes and can be reviewed later.
  */
+
+/**
+ * Case record streamed to python-ai with every message: metadata plus the
+ * Module 5 analysis. This is what lets the assistant answer about a case
+ * before any document has been uploaded or when retrieval returns nothing.
+ */
+async function buildCaseContext(caseDoc) {
+  const [analysis, documentCount] = await Promise.all([
+    CaseAnalysis.findOne({ caseId: caseDoc._id }).lean(),
+    Document.countDocuments({ caseId: caseDoc._id, isDeleted: { $ne: true }, status: 'completed' }),
+  ]);
+
+  return {
+    title: caseDoc.title || '',
+    caseNumber: caseDoc.caseNumber || '',
+    caseType: caseDoc.caseType || '',
+    court: caseDoc.court || '',
+    status: caseDoc.status || '',
+    description: caseDoc.description || '',
+    summary: analysis?.summary?.text || '',
+    keyPoints: analysis?.summary?.keyPoints || [],
+    laws: (analysis?.laws || []).map((law) => ({
+      code: law.code,
+      section: law.section,
+      label: law.label,
+      equivalent: law.equivalent,
+      relevance: law.relevance,
+    })),
+    documentCount,
+  };
+}
 
 // POST /api/cases/:caseId/chat
 const sendCaseMessage = asyncHandler(async (req, res) => {
@@ -42,7 +75,7 @@ const sendCaseMessage = asyncHandler(async (req, res) => {
     content: msg.content,
   }));
 
-  // 3. Call python-ai chat service
+  // 3. Call python-ai chat service (with the case record for grounding)
   let assistantData;
   try {
     assistantData = await sendChatMessage({
@@ -50,6 +83,7 @@ const sendCaseMessage = asyncHandler(async (req, res) => {
       query: content.trim(),
       history: history.slice(0, -1), // Exclude the current user message from history
       topK: 6,
+      caseContext: await buildCaseContext(caseDoc),
     });
   } catch (err) {
     // Still save the failed assistant response so the user sees something

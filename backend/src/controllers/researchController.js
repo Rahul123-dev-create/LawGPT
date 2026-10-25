@@ -47,11 +47,15 @@ function uniqueStrings(values = []) {
   return [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))];
 }
 
+// Only penal-process codes the seeded precedent corpus actually carries make
+// useful Chroma filters. Sections from other statutes (society registration
+// acts, service rules, ...) are stored as OTHER and would starve the search.
+const FILTERABLE_CODES = new Set(['IPC', 'BNS', 'BNSS', 'BSA']);
+
 function deriveSectionFilter(analysis) {
-  const ranked = uniqueStrings((analysis?.laws || []).map((law) => {
-    if (!law?.code || !law?.section) return '';
-    return `${law.code} Section ${law.section}`;
-  }));
+  const ranked = uniqueStrings((analysis?.laws || [])
+    .filter((law) => law?.section && FILTERABLE_CODES.has(String(law.code || '').toUpperCase()))
+    .map((law) => `${String(law.code).toUpperCase()} Section ${law.section}`));
   return ranked[0] || null;
 }
 
@@ -66,10 +70,9 @@ function buildCaseResearchQuery(caseDoc, analysis) {
     parts.push(`Key issues: ${keyPoints.slice(0, 6).join('; ')}`);
   }
 
-  const statutorySections = uniqueStrings((analysis?.laws || []).map((law) => {
-    if (!law?.section) return '';
-    return law.code ? `${law.code} Section ${law.section}` : `Section ${law.section}`;
-  }));
+  const statutorySections = uniqueStrings((analysis?.laws || [])
+    .filter((law) => law?.section && FILTERABLE_CODES.has(String(law.code || '').toUpperCase()))
+    .map((law) => `${String(law.code).toUpperCase()} Section ${law.section}`));
   if (statutorySections.length) {
     parts.push(`Statutory sections: ${statutorySections.slice(0, 8).join(', ')}`);
   }
@@ -131,13 +134,23 @@ const getCasePrecedents = asyncHandler(async (req, res) => {
   }
 
   const sectionFilter = deriveSectionFilter(analysis);
-  const data = await searchPythonJudgments({
+  let data = await searchPythonJudgments({
     query,
     top_k: 5,
     ...(sectionFilter ? { section_filter: sectionFilter } : {}),
   });
+  let rawResults = data.results || [];
 
-  const results = (data.results || []).map((item) => ({
+  // The seeded corpus is small and does not cover every statute. If the
+  // section filter starves the result set, fall back to unfiltered semantic
+  // search so the Similar Judgments tab still shows relevant precedents.
+  if (sectionFilter && rawResults.length < 3) {
+    const unfiltered = await searchPythonJudgments({ query, top_k: 5 });
+    const seen = new Set(rawResults.map((item) => item.id));
+    rawResults = [...rawResults, ...(unfiltered.results || []).filter((item) => !seen.has(item.id))];
+  }
+
+  const results = rawResults.map((item) => ({
     ...item,
     practical_application: buildPracticalApplication(caseDoc, analysis, item),
   }));

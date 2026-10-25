@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -10,6 +11,27 @@ from .embedding_service import embed_texts, embed_query
 
 COLLECTION_NAME = "precedents_collection"
 SEED_FILE_PATH = Path(__file__).parent.parent / "data" / "seed_judgments.json"
+
+
+def _section_matches(section_filter: str, sections: List[str]) -> bool:
+    """Does a precedent's section list cover the requested section filter?
+
+    Callers pass things like "IPC Section 420" while the seeded corpus stores
+    "Section 420 IPC", so a literal substring check misses real matches. Fall
+    back to matching the section number as a whole token.
+    """
+    needle = (section_filter or "").strip().lower()
+    if not needle:
+        return True
+    if any(needle in str(section).lower() for section in sections):
+        return True
+
+    digits = re.findall(r"\d{1,3}", needle)
+    if not digits:
+        return False
+    number = digits[0]
+    pattern = re.compile(rf"(?<!\d){re.escape(number)}(?!\d)")
+    return any(pattern.search(str(section)) for section in sections)
 
 
 class JudgmentService:
@@ -126,11 +148,7 @@ class JudgmentService:
 
                 # Section filter check if provided
                 if section_filter and section_filter.strip():
-                    filter_lower = section_filter.strip().lower()
-                    sec_match = any(
-                        filter_lower in s.lower() for s in judgment.get("sections", [])
-                    )
-                    if not sec_match:
+                    if not _section_matches(section_filter, judgment.get("sections", [])):
                         continue
 
                 # Cosine distance to similarity: dist is 1 - similarity for cosine space

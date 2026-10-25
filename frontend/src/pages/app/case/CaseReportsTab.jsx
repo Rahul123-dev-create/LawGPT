@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   Loader2, Download, FileText, CheckCircle2, AlertTriangle,
-  BarChart3, Users, Scale, BookOpen, Gavel, ShieldCheck,
+  BarChart3, Users, Scale, BookOpen, Gavel, ShieldCheck, Eye, X,
 } from 'lucide-react';
 import { Card } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
-import { getReportMetadata, downloadCasePdfReport } from '../../../services/reportService';
+import {
+  getReportMetadata,
+  downloadCasePdfReport,
+  previewCasePdfReport,
+} from '../../../services/reportService';
 
 const SECTION_ICONS = {
   cover: FileText,
@@ -31,9 +35,23 @@ export default function CaseReportsTab() {
   const [metadata, setMetadata] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState('');
   const [lastDownload, setLastDownload] = useState(null);
   const [options, setOptions] = useState({ ...SECTION_DEFAULTS });
+  const previewUrlRef = useRef('');
+
+  // Object URLs are owned by this component: replace/revoke them explicitly.
+  const setPreviewObjectUrl = useCallback((url) => {
+    if (previewUrlRef.current) window.URL.revokeObjectURL(previewUrlRef.current);
+    previewUrlRef.current = url;
+    setPreviewUrl(url);
+  }, []);
+
+  useEffect(() => () => {
+    if (previewUrlRef.current) window.URL.revokeObjectURL(previewUrlRef.current);
+  }, []);
 
   const loadMetadata = useCallback(async () => {
     try {
@@ -67,6 +85,19 @@ export default function CaseReportsTab() {
     }
   };
 
+  const handlePreview = async () => {
+    setPreviewing(true);
+    setError('');
+    try {
+      const { url } = await previewCasePdfReport(caseId, options);
+      setPreviewObjectUrl(url);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Report preview failed');
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
   const toggleOption = (key) => {
     setOptions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -80,14 +111,24 @@ export default function CaseReportsTab() {
             Generate a comprehensive PDF report of all case data — analysis, arguments, evidence, and timeline.
           </p>
         </div>
-        <Button size="sm" onClick={handleDownload} disabled={downloading}>
-          {downloading ? (
-            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Download className="mr-2 h-3.5 w-3.5" />
-          )}
-          Download PDF
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={handlePreview} disabled={previewing}>
+            {previewing ? (
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Eye className="mr-2 h-3.5 w-3.5" />
+            )}
+            Preview
+          </Button>
+          <Button size="sm" onClick={handleDownload} disabled={downloading}>
+            {downloading ? (
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-3.5 w-3.5" />
+            )}
+            Download PDF
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -167,6 +208,29 @@ export default function CaseReportsTab() {
                   );
                 })}
               </div>
+            </Card>
+          )}
+
+          {/* Inline PDF preview (no download required) */}
+          {previewUrl && (
+            <Card className="overflow-hidden p-0">
+              <div className="flex items-center justify-between border-b border-border px-4 py-2">
+                <h3 className="text-sm font-semibold">Report Preview</h3>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setPreviewObjectUrl('')}
+                  aria-label="Close report preview"
+                >
+                  <X className="mr-1 h-3.5 w-3.5" />
+                  Close
+                </Button>
+              </div>
+              <iframe
+                title="Case report preview"
+                src={previewUrl}
+                className="h-[640px] w-full bg-white"
+              />
             </Card>
           )}
 

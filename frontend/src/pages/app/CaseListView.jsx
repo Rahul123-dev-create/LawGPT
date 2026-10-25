@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FolderOpen, Sparkles, Pin, PinOff, Search as SearchIcon } from 'lucide-react';
+import { FolderOpen, Pin, PinOff, Search as SearchIcon } from 'lucide-react';
 import { caseStatusNav } from '../../config/navigation';
 import { CASE_TYPES, CASE_PRIORITIES, STATUS_BADGE_VARIANT, PRIORITY_BADGE_VARIANT } from '../../config/caseOptions';
 import { Button } from '../../components/ui/button';
@@ -177,12 +177,6 @@ export default function CaseListView() {
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Button size="sm" asChild>
               <Link to="/app/cases/new">Start a case</Link>
-            </Button>
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/app/cases/preview">
-                <Sparkles className="mr-2 h-3.5 w-3.5" />
-                Preview the case workspace
-              </Link>
             </Button>
           </div>
         </div>

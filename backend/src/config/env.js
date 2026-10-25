@@ -21,6 +21,10 @@ const env = {
   port: parseInt(process.env.PORT, 10) || 5000,
   mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/lawgpt',
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+  clientUrls: (process.env.CLIENT_URL || 'http://localhost:5173,http://127.0.0.1:5173')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean),
   pythonAiServiceUrl: process.env.PYTHON_AI_SERVICE_URL || 'http://localhost:8000',
   // Root directory for uploaded case documents (Module 4). Defaults to
   // <repo>/backend/uploads. Gitignored — uploaded files are never committed.

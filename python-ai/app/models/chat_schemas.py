@@ -15,11 +15,29 @@ class Citation(BaseModel):
     score: float = 0.0
 
 
+class CaseContext(BaseModel):
+    """Case metadata + generated analysis, streamed in by the backend so the
+    assistant can answer from the case record even before (or without)
+    document retrieval hits."""
+
+    title: str = ""
+    caseNumber: str = ""
+    caseType: str = ""
+    court: str = ""
+    status: str = ""
+    description: str = ""
+    summary: str = ""
+    keyPoints: List[str] = Field(default_factory=list)
+    laws: List[dict] = Field(default_factory=list)
+    documentCount: int = 0
+
+
 class ChatRequest(BaseModel):
     case_id: str
     query: str
     history: List[ChatMessage] = Field(default_factory=list)
     top_k: int = Field(default=6, ge=1, le=20)
+    case_context: Optional[CaseContext] = None
 
 
 class ChatResponseData(BaseModel):

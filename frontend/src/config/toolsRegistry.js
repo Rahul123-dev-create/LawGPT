@@ -23,29 +23,36 @@ import {
 
 /**
  * Every entry here becomes a clickable sidebar item AND a routed page
- * (/app/research/:slug or /app/practice/:slug) rendered by the generic
- * ComingSoonView until its owning module is built. `plannedModule` maps to
- * the roadmap in PROJECT_MEMORY.md — keep them in sync. Renumbered after
- * Module 3 became Case Management (was previously the document pipeline
- * slot) — everything downstream shifted +1.
+ * (/app/research/:slug) rendered by ResearchHub. Only entries flagged
+ * `live: true` are shown and routed — they hit the real precedent-search
+ * backend. The remaining entries are kept as roadmap data (plannedModule
+ * maps to the roadmap in PROJECT_MEMORY.md) but are deliberately NOT linked
+ * in the sidebar, so the navigation only offers working tools.
  */
 export const researchTools = [
-  { slug: 'judge-research', labelKey: 'research.judgeResearch', icon: Gavel, plannedModule: 6 },
-  { slug: 'constitution', labelKey: 'research.constitution', icon: BookOpen, plannedModule: 6 },
+  { slug: 'judge-research', labelKey: 'research.judgeResearch', icon: Gavel, plannedModule: 6, live: true },
+  { slug: 'constitution', labelKey: 'research.constitution', icon: BookOpen, plannedModule: 6, live: true },
   { slug: 'bns', labelKey: 'research.bns', icon: FileText, plannedModule: 5 },
   { slug: 'bnss', labelKey: 'research.bnss', icon: Shield, plannedModule: 5 },
   { slug: 'bsa', labelKey: 'research.bsa', icon: FileSearch, plannedModule: 5 },
-  { slug: 'supreme-court', labelKey: 'research.supremeCourt', icon: Landmark, plannedModule: 6 },
-  { slug: 'high-court', labelKey: 'research.highCourt', icon: Building2, plannedModule: 6 },
-  { slug: 'judgment-search', labelKey: 'research.judgmentSearch', icon: Search, plannedModule: 6 },
-  { slug: 'case-comparison', labelKey: 'research.caseComparison', icon: GitCompare, plannedModule: 6 },
+  { slug: 'supreme-court', labelKey: 'research.supremeCourt', icon: Landmark, plannedModule: 6, live: true },
+  { slug: 'high-court', labelKey: 'research.highCourt', icon: Building2, plannedModule: 6, live: true },
+  { slug: 'judgment-search', labelKey: 'research.judgmentSearch', icon: Search, plannedModule: 6, live: true },
+  { slug: 'case-comparison', labelKey: 'research.caseComparison', icon: GitCompare, plannedModule: 6, live: true },
   { slug: 'evidence-analyzer', labelKey: 'research.evidenceAnalyzer', icon: Microscope, plannedModule: 7 },
-  { slug: 'legal-dictionary', labelKey: 'research.legalDictionary', icon: BookMarked, plannedModule: 6 },
+  { slug: 'legal-dictionary', labelKey: 'research.legalDictionary', icon: BookMarked, plannedModule: 6, live: true },
   { slug: 'bookmarks', labelKey: 'research.bookmarks', icon: Bookmark, plannedModule: 10 },
   { slug: 'ai-assistant', labelKey: 'research.aiAssistant', icon: Bot, plannedModule: 8 },
 ];
 
+/** Research tools with a working implementation behind them. */
+export const LIVE_RESEARCH_SLUGS = new Set(
+  researchTools.filter((item) => item.live).map((item) => item.slug)
+);
+
 export const practiceTools = [
+  // None of these are built yet: none are flagged `live`, so the sidebar
+  // hides the whole Practice Management section until one is.
   { slug: 'clients', labelKey: 'practice.clients', icon: Users, plannedModule: 10 },
   {
     slug: 'hearings',
