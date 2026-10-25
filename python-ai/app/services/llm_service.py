@@ -89,8 +89,8 @@ def _call_gemini_sdk(prompt: str) -> str:
     # 2. Build prioritized candidate list
     candidate_models = []
     configured_model_str = getattr(settings, "gemini_models", None)
-    if configured_models and configured_models_str.strip():
-        for cm in configured_models_str.split(","):
+    if configured_model_str and configured_models_str.strip():
+        for cm in configured_model_str.split(","):
             clean_cm=cm.strip().replace("models/", "")
             if clean_cm and clean_cm not in candidate_models:
                 candidate_models.append(clean_cm)
